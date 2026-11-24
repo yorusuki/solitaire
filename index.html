@@ -446,9 +446,9 @@ function SOLVER(){
 }
 const solveLocal=SOLVER(),pend={};let worker=null,wid=0;
 try{worker=new Worker(URL.createObjectURL(new Blob(['('+SOLVER.toString()+')()'],{type:'text/javascript'})));
- worker.onmessage=e=>{const f=pend[e.data.id];delete pend[e.data.id];if(f)f(e.data.res)};worker.onerror=()=>{worker=null}}catch(e){worker=null}
+ worker.onmessage=e=>{const f=pend[e.data.id];delete pend[e.data.id];if(f)f({res:e.data.res,first:e.data.first})};worker.onerror=()=>{worker=null}}catch(e){worker=null}
 function trySolve(st,draw,ms){return new Promise(res=>{
- if(worker){const id=++wid;pend[id]=res;worker.postMessage({id,st,draw,ms});setTimeout(()=>{if(pend[id]){delete pend[id];res({res:-1,first:null})}},ms+1500)}
+ if(worker){const id=++wid;pend[id]=res;worker.postMessage({id,st,draw,ms});setTimeout(()=>{if(pend[id]){delete pend[id];res({res:-1,first:null})}},ms+800)}
  else setTimeout(()=>res(solveLocal(st,draw,Math.min(ms,400))),0);
 })}
 function toState(s){
@@ -468,7 +468,7 @@ async function newGame(){
  if(ST.solv){
   dealing=1;$('newBtn').disabled=$('againBtn').disabled=true;toast('洗牌中，確認這局有解…');
   const t=Date.now();
-  for(let a=0;a<25&&Date.now()-t<7000;a++){
+  for(let a=0;a<25&&Date.now()-t<4000;a++){
    if(a)s=dealFrom();
    if((await trySolve(toState(s),draw,600)).res==1){ok=true;break}
   }
