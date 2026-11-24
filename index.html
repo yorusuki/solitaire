@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>接龍</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Huninn&display=swap" rel="stylesheet">
+<style>
+/* VOICE: playful, soft, toy-like; a game you want to touch
+   IDEA: a sticker card set laid out on a kid's play mat
+   PICTURE: the board itself; suits with little faces, animal court cards
+   COLOUR and TYPE: each theme owns its palette; Fredoka ranks, Huninn Chinese
+   LAYOUT: compact toolbar, board fills width, style sheet slides up */
+:root{color-scheme:light dark;--ink:#3a2a35;--panel:rgba(255,255,255,.74);--slot:rgba(58,42,53,.28);--accent:#ec5b7f;
+--sheet:light-dark(#fffaf7,#26223a);--sheetInk:light-dark(#3a2a35,#f6eef4);--optBg:light-dark(#f6eef0,#332e4a);
+--cw:80px;--ch:112px;--face:#fff;--backBg:#ff8fab;--backEdge:#fff;--backPat:none}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+:root[data-tbl=dark]{--ink:#fffaf4;--panel:rgba(255,255,255,.16);--slot:rgba(255,255,255,.38)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;min-height:100dvh;color:var(--ink);font:16px/1.55 Huninn,"PingFang TC","Microsoft JhengHei",system-ui,sans-serif;overflow-x:clip;-webkit-tap-highlight-color:transparent}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;max-width:920px;margin:0 auto;padding:14px max(2vw,10px) 8px}
+h1{margin:0;font-size:28px;line-height:1.05;font-weight:400;letter-spacing:.02em}
+.stats{display:flex;gap:14px;font-size:15px}
+.stats b{font:700 17px Fredoka,sans-serif;font-variant-numeric:tabular-nums;margin-left:4px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-left:auto}
+.btn{min-height:44px;padding:0 16px;border:0;border-radius:999px;background:var(--panel);color:var(--ink);font:inherit;cursor:pointer;box-shadow:0 2px 0 rgba(0,0,0,.14);backdrop-filter:blur(6px);white-space:nowrap}
+.btn.main{background:var(--accent);color:#fff}
+.btn:active{transform:translateY(1px);box-shadow:none}
+.btn:disabled{opacity:.45;cursor:default}
+button:focus-visible{outline:3px solid #ffd34d;outline-offset:2px}
+.board{position:relative;width:calc(100% - 2*max(1.5vw,6px));max-width:900px;margin:4px auto 0;touch-action:manipulation}
+.slot{position:absolute;left:0;top:0;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw)*.13);border:2px dashed var(--slot);display:grid;place-items:center;color:var(--slot);font:700 calc(var(--cw)*.34) Fredoka,sans-serif}
+.slot[data-ref=stock]{cursor:pointer}
+.slot svg{width:46%}
+.card{position:absolute;left:0;top:0;width:var(--cw);height:var(--ch);border-radius:calc(var(--cw)*.13);transition:transform .22s cubic-bezier(.3,.7,.4,1);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;cursor:pointer;overflow:hidden}
+.card.nt,.card.drag{transition:none}
+.card.drag{filter:drop-shadow(0 10px 12px rgba(0,0,0,.25))}
+.face{background:var(--face);border:1px solid rgba(0,0,0,.1);box-shadow:0 2px 5px rgba(0,0,0,.16)}
+.back{background:var(--backPat),var(--backBg);border:calc(var(--cw)*.055) solid var(--backEdge);box-shadow:0 2px 5px rgba(0,0,0,.18)}
+.emb{position:absolute;inset:30% 20%}.emb svg{width:100%;height:100%}
+.corner{position:absolute;left:6%;top:2%;display:flex;align-items:center;gap:1px;font:700 calc(var(--cw)*.26)/1.15 Fredoka,sans-serif;letter-spacing:-.03em}
+.corner svg{width:calc(var(--cw)*.19);height:calc(var(--cw)*.19)}
+.corner.br{left:auto;top:auto;right:6%;bottom:2%;transform:rotate(180deg)}
+.mid{position:absolute;left:16%;right:16%;top:30%;bottom:16%}
+.mid.ace{left:8%;right:8%;top:24%;bottom:8%}
+.mid.big{left:9%;right:9%;top:22%;bottom:13%}
+.mid svg{width:100%;height:100%;display:block}
+.hint{outline:3px solid #ffd34d;outline-offset:-3px;animation:bob .45s 3}
+.shake{animation:shake .2s 2}
+@keyframes bob{50%{translate:0 -7px}}
+@keyframes shake{25%{rotate:-4deg}75%{rotate:4deg}}
+.tip{text-align:center;font-size:14px;opacity:.85;margin:8px 16px 24px}
+.toast{position:fixed;left:50%;bottom:22px;translate:-50% 0;background:#2d2438;color:#fff;padding:10px 18px;border-radius:999px;font-size:15px;z-index:3000;max-width:90vw;text-align:center;pointer-events:none;transition:opacity .2s}
+.toast[hidden]{display:block;opacity:0}
+.sheet,.win{position:fixed;inset:0;z-index:2000;background:rgba(30,20,40,.4);display:flex;align-items:flex-end;justify-content:center}
+.sheet[hidden],.win[hidden]{display:none}
+.box{width:min(640px,100%);max-height:90dvh;overflow:auto;background:var(--sheet);color:var(--sheetInk);border-radius:26px 26px 0 0;padding:20px 20px 28px}
+.head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.head h2{margin:0;font-size:24px;font-weight:400}
+.box h3{font-size:16px;font-weight:400;margin:18px 0 8px;opacity:.8}
+.box .btn{background:var(--optBg);color:var(--sheetInk);box-shadow:none}
+.box .btn.main{background:var(--accent);color:#fff}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:10px}
+.opt{border:3px solid transparent;border-radius:18px;padding:10px 8px 8px;background:var(--optBg);color:inherit;font:inherit;cursor:pointer;min-height:44px}
+.opt[aria-pressed=true]{border-color:var(--accent)}
+.pv{display:flex;gap:4px;justify-content:center;margin-bottom:6px;--cw:40px;--ch:56px}
+.pv .card{position:relative;flex:none;cursor:inherit}
+.sw{height:58px;border-radius:12px;margin-bottom:6px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)}
+.seg{display:flex;flex-wrap:wrap;gap:8px}
+.note{font-size:14px;opacity:.75;margin:8px 0 0}
+.tag{font-size:13px;padding:2px 10px;border-radius:999px;background:var(--panel)}
+.tag[hidden]{display:none}
+.seg .btn[aria-pressed=true]{background:var(--accent);color:#fff}
+.win{align-items:center}
+.win .box{border-radius:28px;text-align:center;width:min(92vw,380px)}
+.win svg{width:110px;height:134px}
+.win h2{margin:6px 0 4px;font-size:30px;font-weight:400}
+.win p{margin:0 0 18px}
+.ask{position:fixed;left:50%;bottom:16px;translate:-50% 0;width:min(92vw,440px);background:var(--sheet);color:var(--sheetInk);border-radius:20px;padding:14px 16px;box-shadow:0 10px 30px rgba(0,0,0,.28);z-index:2500}
+.ask[hidden]{display:none}.ask p{margin:0 0 10px}
+.askBtns{display:flex;gap:8px;justify-content:flex-end}
+.ask .btn{background:var(--optBg);color:var(--sheetInk);box-shadow:none}.ask .btn.main{background:var(--accent);color:#fff}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:1900;overflow:hidden}
+#confetti i{position:absolute;top:-40px;width:22px;height:22px;animation:fall linear forwards}
+@keyframes fall{to{transform:translateY(115vh) rotate(600deg)}}
+@media(min-width:700px){.sheet{align-items:center}.sheet .box{border-radius:26px}}
+@media(max-width:600px){h1{font-size:24px}.btn{padding:0 12px;font-size:15px}.tools{margin-left:0;width:100%}.tools .btn{flex:1 1 auto}}
+@media(prefers-reduced-motion:reduce){.card{transition:none}.hint,.shake{animation:none}#confetti{display:none}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <h1>接龍</h1>
+  <div class="stats"><span>時間<b id="time">0:00</b></span><span>步數<b id="moves">0</b></span><span id="solvTag" class="tag" hidden>保證有解</span></div>
+  <div class="tools">
+    <button id="newBtn" class="btn main">新遊戲</button>
+    <button id="undoBtn" class="btn">復原</button>
+    <button id="hintBtn" class="btn">提示</button>
+    <button id="autoBtn" class="btn" hidden>自動收牌</button>
+    <button id="setBtn" class="btn">換牌面／背景</button>
+  </div>
+</header>
+<main id="board" class="board" aria-label="接龍牌桌"></main>
+<p class="tip">點一下牌會自動移到合適位置，也可以拖曳。卡住時按「提示」，走進死局會幫你找回還有解的那一步。</p>
+
+<div id="sheet" class="sheet" hidden>
+  <div class="box" role="dialog" aria-modal="true" aria-labelledby="stT">
+    <div class="head"><h2 id="stT">換個風格</h2><button id="closeBtn" class="btn main">完成</button></div>
+    <h3>牌面主題</h3><div id="themeList" class="opts"></div>
+    <h3>桌面背景</h3><div id="bgList" class="opts"></div>
+    <h3>發牌方式</h3>
+    <div class="seg"><button class="btn" data-solv="1">保證有解</button><button class="btn" data-solv="0">完全隨機</button></div>
+    <p class="note">「保證有解」會先用電腦確認這局有解法才發牌，不過走錯步還是可能卡住，可以用復原退回去。設定從下一局開始生效。</p>
+    <h3>抽牌方式</h3>
+    <div class="seg"><button class="btn" data-draw="1">一次 1 張（簡單）</button><button class="btn" data-draw="3">一次 3 張（經典）</button></div>
+  </div>
+</div>
+<div id="win" class="win" hidden>
+  <div class="box"><div id="winPic"></div><h2>全部收好了！</h2><p id="winStat"></p><button id="againBtn" class="btn main">再玩一局</button></div>
+</div>
+<div id="ask" class="ask" hidden role="alertdialog" aria-labelledby="askMsg"><p id="askMsg"></p><div class="askBtns"><button id="askNo" class="btn">先不要</button><button id="askYes" class="btn main">退回</button></div></div>
+<div id="confetti"></div>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+{
+const $=id=>document.getElementById(id),root=document.documentElement,board=$('board');
+const RL=['','A','2','3','4','5','6','7','8','9','10','J','Q','K'],SU=['h','d','c','s'],SN={h:'紅心',d:'方塊',c:'梅花',s:'黑桃'};
+const isRed=s=>s=='h'||s=='d';
+const THEMES={
+ cat:{name:'貓咪派對',sp:'cat',face:'#fffaf2',red:'#ec5b7f',blk:'#3f3b63',fur:'#f8b26a',inner:'#ffc4d3',line:'#4b3442',muz:'#fff',acc:'#ffd34d',backBg:'#ff8fab',backEdge:'#fff6f8',backPat:'radial-gradient(circle,#ffffffb0 22%,transparent 26%) 0 0/12px 12px'},
+ bunny:{name:'兔兔甜點',sp:'bunny',face:'#fff8fc',red:'#f0628f',blk:'#5a5c9c',fur:'#ffffff',inner:'#ffb6cb',line:'#5b4057',muz:'#fff',acc:'#ffd166',backBg:'#9fd3f6',backEdge:'#fffdf7',backPat:'repeating-linear-gradient(45deg,#ffffff99 0 4px,transparent 4px 10px)'},
+ bear:{name:'熊熊森林',sp:'bear',face:'#fffaf0',red:'#d9534f',blk:'#2f5a3c',fur:'#b9814f',inner:'#f0c9a0',line:'#3f2b1f',muz:'#f6e2c8',acc:'#ffc94a',backBg:'#7fb07f',backEdge:'#fff8ea',backPat:'conic-gradient(#ffffff45 25%,transparent 0 50%,#ffffff45 0 75%,transparent 0) 0 0/14px 14px'},
+ chick:{name:'小雞海邊',sp:'chick',face:'#f6fcff',red:'#ff6b4a',blk:'#25618f',fur:'#ffd84d',inner:'#ffb347',line:'#4a3a24',muz:'#fff',acc:'#ff9f43',backBg:'#ffc94f',backEdge:'#ffffff',backPat:'radial-gradient(circle at 50% 100%,transparent 38%,#ffffffa8 40% 52%,transparent 54%) 0 0/16px 10px'}
+};
+const BGS={
+ berry:{name:'草莓牛奶',dark:0,css:'radial-gradient(#ffffff88 2px,transparent 2.6px) 0 0/24px 24px,#f6c5d2'},
+ mint:{name:'薄荷蘇打',dark:0,css:'conic-gradient(#ffffff3c 25%,transparent 0 50%,#ffffff3c 0 75%,transparent 0) 0 0/48px 48px,#b6e2cc'},
+ sky:{name:'天空雲朵',dark:0,css:'radial-gradient(ellipse 140px 44px at 18% 22%,#ffffffaa,transparent 70%),radial-gradient(ellipse 180px 54px at 82% 64%,#ffffff99,transparent 70%),radial-gradient(ellipse 120px 40px at 40% 90%,#ffffff88,transparent 70%),linear-gradient(#8fd0ff,#e2f5ff)'},
+ wood:{name:'木頭桌面',dark:0,css:'repeating-linear-gradient(90deg,transparent 0 58px,#00000014 58px 60px),repeating-linear-gradient(90deg,#d9a66e 0 9px,#dfae78 9px 23px)'},
+ felt:{name:'經典綠絨',dark:1,css:'radial-gradient(circle at 50% 20%,#41a36b,#1c5737 80%)'},
+ night:{name:'星星夜空',dark:1,css:'radial-gradient(#ffffffd0 1px,transparent 1.7px) 0 0/37px 37px,radial-gradient(#ffe9a8b0 1.5px,transparent 2.2px) 13px 19px/71px 71px,linear-gradient(#1d2047,#3d3068)'}
+};
+const HEART='M50 90C22 70 6 52 6 34 6 19 17 9 30 9c9 0 16 5 20 13 4-8 11-13 20-13 13 0 24 10 24 25 0 18-16 36-44 56z';
+const SPADE='M50 6C34 28 8 42 8 61c0 13 10 22 22 22 7 0 13-3 17-9-1 9-5 15-11 20h28c-6-5-10-11-11-20 4 6 10 9 17 9 12 0 22-9 22-22C92 42 66 28 50 6z';
+function shape(s,c){
+ if(s=='h')return `<path d="${HEART}" fill="${c}"/>`;
+ if(s=='d')return `<path d="M50 11 84 50 50 89 16 50z" fill="${c}" stroke="${c}" stroke-width="10" stroke-linejoin="round"/>`;
+ if(s=='s')return `<path d="${SPADE}" fill="${c}"/>`;
+ return `<circle cx="50" cy="30" r="19" fill="${c}"/><circle cx="28" cy="58" r="19" fill="${c}"/><circle cx="72" cy="58" r="19" fill="${c}"/><circle cx="50" cy="52" r="14" fill="${c}"/><path d="M44 58c0 18-4 28-10 35h32c-6-7-10-17-10-35z" fill="${c}"/>`;
+}
+const FY={h:42,d:50,s:56,c:46};
+function kawaii(s,ec,bl){const y=FY[s];
+ return `<circle cx="40" cy="${y}" r="4.6" fill="${ec}"/><circle cx="60" cy="${y}" r="4.6" fill="${ec}"/><path d="M45 ${y+8}q5 5 10 0" stroke="${ec}" stroke-width="3" fill="none" stroke-linecap="round"/><ellipse cx="31" cy="${y+8}" rx="6" ry="3.5" fill="${bl}" opacity=".8"/><ellipse cx="69" cy="${y+8}" rx="6" ry="3.5" fill="${bl}" opacity=".8"/>`}
+const suitFace=(s,T)=>shape(s,isRed(s)?T.red:T.blk)+kawaii(s,isRed(s)?'#3a2230':'#fff',isRed(s)?'#ffd3de':'#ff9fbf');
+function star(x,y,c,k){return `<path d="M0-9C1-2 2-1 9 0 2 1 1 2 0 9-1 2-2 1-9 0-2-1-1-2 0-9z" fill="${c}" transform="translate(${x} ${y}) scale(${k})"/>`}
+function chr(T,r,s){
+ const L=T.line,F=T.fur,I=T.inner,col=isRed(s)?T.red:T.blk,st=`stroke="${L}" stroke-width="2.6" stroke-linejoin="round"`;
+ let e;
+ if(T.sp=='cat')e=`<path d="M24 52 27 21 46 35z" fill="${F}" ${st}/><path d="M76 52 73 21 54 35z" fill="${F}" ${st}/><path d="M29 41 30 29 39 36z" fill="${I}"/><path d="M71 41 70 29 61 36z" fill="${I}"/>`;
+ else if(T.sp=='bunny')e=`<ellipse cx="37" cy="24" rx="8.5" ry="22" fill="${F}" ${st} transform="rotate(-10 37 24)"/><ellipse cx="63" cy="24" rx="8.5" ry="22" fill="${F}" ${st} transform="rotate(10 63 24)"/><ellipse cx="37" cy="26" rx="4" ry="15" fill="${I}" transform="rotate(-10 37 26)"/><ellipse cx="63" cy="26" rx="4" ry="15" fill="${I}" transform="rotate(10 63 26)"/>`;
+ else if(T.sp=='bear')e=`<circle cx="28" cy="38" r="10" fill="${F}" ${st}/><circle cx="72" cy="38" r="10" fill="${F}" ${st}/><circle cx="28" cy="38" r="5" fill="${I}"/><circle cx="72" cy="38" r="5" fill="${I}"/>`;
+ else e=`<path d="M47 34q-7-12 1-15q-1 6 5 4q-4 4-1 11" fill="${F}" ${st}/>`;
+ const eyes=r==13?`<path d="M35 61q5-6 10 0M55 61q5-6 10 0" stroke="${L}" stroke-width="3" fill="none" stroke-linecap="round"/>`
+  :`<circle cx="40" cy="60" r="4.4" fill="${L}"/><circle cx="60" cy="60" r="4.4" fill="${L}"/><circle cx="41.5" cy="58.4" r="1.5" fill="#fff"/><circle cx="61.5" cy="58.4" r="1.5" fill="#fff"/>`+(r==12?`<path d="M35 56l-3-3M65 56l3-3" stroke="${L}" stroke-width="2.2" stroke-linecap="round"/>`:'');
+ let m;
+ if(T.sp=='bear')m=`<ellipse cx="50" cy="71" rx="10" ry="7.5" fill="${T.muz}"/><ellipse cx="50" cy="68" rx="3.6" ry="2.6" fill="${L}"/><path d="M47 73q3 3 6 0" stroke="${L}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+ else if(T.sp=='chick')m=`<path d="M44 67h12l-6 7z" fill="#ff9f43" ${st}/>`;
+ else m=`<path d="M48 65h4l-2 2.5z" fill="${L}"/><path d="M44 69q3 4 6 0q3 4 6 0" stroke="${L}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`+(T.sp=='cat'?`<path d="M20 64l11 2M20 71l11-1M80 64l-11 2M80 71l-11-1" stroke="${L}" stroke-width="1.6" stroke-linecap="round"/>`:'');
+ const acc=r==13?`<path d="M33 38 35 18 43 28 50 13 57 28 65 18 67 38z" fill="${T.acc}" ${st}/><circle cx="50" cy="31" r="3.4" fill="${col}"/>`
+  :r==12?`<path d="M71 39 58 30v18zM71 39l13-9v18z" fill="${col}" ${st}/><circle cx="71" cy="39" r="4.6" fill="${col}" ${st}/>`
+  :`<path d="M26 49q0-27 24-27t24 27z" fill="${col}" ${st}/><path d="M26 49h48" ${st}/><circle cx="50" cy="21" r="5.5" fill="#fff" ${st}/>`;
+ return `<svg viewBox="0 0 100 122" aria-hidden="true">${e}<path d="M22 124q0-38 28-38t28 38z" fill="${F}" ${st}/><g transform="translate(40 96) scale(.2)">${shape(s,col)}</g><circle cx="50" cy="60" r="28" fill="${F}" ${st}/>${eyes}${m}<ellipse cx="32" cy="69" rx="5.5" ry="3.4" fill="#ff8fab" opacity=".65"/><ellipse cx="68" cy="69" rx="5.5" ry="3.4" fill="#ff8fab" opacity=".65"/>${acc}</svg>`;
+}
+function cardInner(c,T){
+ if(!c.up)return `<div class="emb"><svg viewBox="0 0 100 100" aria-hidden="true">${shape('h',T.backEdge)}${kawaii('h',T.backBg,'#ffffff00')}</svg></div>`;
+ const col=isRed(c.s)?T.red:T.blk,cor=`<span>${RL[c.r]}</span><svg viewBox="0 0 100 100">${shape(c.s,col)}</svg>`;
+ let mid;
+ if(c.r>10)mid=`<div class="mid big">${chr(T,c.r,c.s)}</div>`;
+ else if(c.r==1)mid=`<div class="mid ace"><svg viewBox="-14 -14 128 128">${suitFace(c.s,T)}${star(-2,2,T.acc,1)}${star(102,8,T.acc,.7)}${star(100,96,T.acc,.9)}</svg></div>`;
+ else mid=`<div class="mid"><svg viewBox="0 0 100 100">${suitFace(c.s,T)}</svg></div>`;
+ return `<div class="corner" style="color:${col}">${cor}</div>${mid}<div class="corner br" style="color:${col}">${cor}</div>`;
+}
+const themeVars=T=>`--face:${T.face};--backBg:${T.backBg};--backEdge:${T.backEdge};--backPat:${T.backPat}`;
+
+/* settings */
+let ST={theme:'cat',bg:(root.dataset.theme=='dark'||(!root.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches))?'night':'berry',draw:1,solv:1};
+try{Object.assign(ST,JSON.parse(localStorage.getItem('cuteSol')||'{}'))}catch(e){}
+if(!THEMES[ST.theme])ST.theme='cat';if(!BGS[ST.bg])ST.bg='berry';if(ST.draw!=3)ST.draw=1;if(ST.solv!==0)ST.solv=1;
+const save=()=>{try{localStorage.setItem('cuteSol',JSON.stringify(ST))}catch(e){}};
+
+/* elements */
+const E=[],SL={};
+for(let id=0;id<52;id++){const d=document.createElement('div');d.className='card';d.dataset.id=id;board.appendChild(d);E.push(d)}
+const RECY='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/></svg>';
+function mkSlot(ref,html){const d=document.createElement('div');d.className='slot';d.dataset.ref=ref;d.innerHTML=html;board.prepend(d);SL[ref]=d}
+mkSlot('stock',RECY);mkSlot('waste','');for(let i=0;i<4;i++)mkSlot('f'+i,'A');for(let j=0;j<7;j++)mkSlot('t'+j,'K');
+
+/* state */
+let S={stock:[],waste:[],found:[[],[],[],[]],tab:[[],[],[],[],[],[],[]]},solvedFor=0,dealing=0,hist=[],moves=0,t0=0,elapsed=0,timer=0,won=false,autoRun=false,D=null,newArm=0;
+let cw=80,ch=112,g=8,ox=0,tabY=0;const pos={};
+const pile=r=>r=='stock'?S.stock:r=='waste'?S.waste:r[0]=='f'?S.found[+r[1]]:S.tab[+r[1]];
+const REFS=['stock','waste','f0','f1','f2','f3','t0','t1','t2','t3','t4','t5','t6'];
+function locate(id){for(const r of REFS){const i=pile(r).findIndex(c=>c.id==id);if(i>=0)return{ref:r,idx:i}}}
+const canTab=(c,p)=>!p.length?c.r==13:(p.at(-1).up&&isRed(p.at(-1).s)!=isRed(c.s)&&p.at(-1).r==c.r+1);
+const canFound=(c,p)=>!p.length?c.r==1:(p.at(-1).s==c.s&&p.at(-1).r+1==c.r);
+const X=i=>ox+i*(cw+g);
+
+function measure(){
+ const bw=board.clientWidth;g=Math.max(5,Math.min(14,bw*.02));
+ cw=Math.min(108,(bw-g*8)/7);ch=cw*1.4;ox=(bw-(7*cw+6*g))/2;tabY=g+ch+g*1.8;
+ root.style.setProperty('--cw',cw+'px');root.style.setProperty('--ch',ch+'px');
+}
+function put(c,x,y,z,hide){
+ const el=E[c.id],T=THEMES[ST.theme],k=ST.theme+(c.up?'u':'d');
+ pos[c.id]={x,y};
+ if(el._k!==k){el._k=k;el.classList.toggle('face',!!c.up);el.classList.toggle('back',!c.up);el.innerHTML=cardInner(c,T);el.setAttribute('aria-label',c.up?SN[c.s]+RL[c.r]:'蓋著的牌')}
+ el.style.visibility=hide?'hidden':'';
+ if(!el.classList.contains('drag')){el.style.transform=`translate(${x}px,${y}px)`;el.style.zIndex=z}
+}
+function slotAt(ref,x,y){SL[ref].style.transform=`translate(${x}px,${y}px)`}
+function render(){
+ if(!S)return;measure();
+ slotAt('stock',X(0),g);slotAt('waste',X(1),g);SL.waste.style.opacity=0;
+ for(let i=0;i<4;i++)slotAt('f'+i,X(3+i),g);
+ S.stock.forEach((c,k)=>put(c,X(0),g,1+k,k<S.stock.length-2));
+ const n=S.waste.length,vis=ST.draw==3?3:1;
+ S.waste.forEach((c,k)=>put(c,X(1)+Math.max(0,k-(n-vis))*cw*.26,g,100+k,k<n-vis-1));
+ S.found.forEach((p,i)=>p.forEach((c,k)=>put(c,X(3+i),g,200+k,k<p.length-2)));
+ const top=board.getBoundingClientRect().top+scrollY;
+ const avail=Math.max(ch*1.6,innerHeight-top-tabY-ch-48);
+ let bottom=tabY+ch*2;
+ S.tab.forEach((p,j)=>{
+  slotAt('t'+j,X(j),tabY);
+  let need=0;p.forEach((c,k)=>{if(k<p.length-1)need+=c.up?ch*.28:ch*.13});
+  const f=need>avail?Math.max(.42,avail/need):1;let y=tabY;
+  p.forEach((c,k)=>{put(c,X(j),y,300+k);y+=(c.up?ch*.28:ch*.13)*f});
+  if(p.length)bottom=Math.max(bottom,y-(p.at(-1).up?ch*.28:ch*.13)*f+ch);
+ });
+ board.style.height=bottom+g+'px';
+ $('moves').textContent=moves;$('solvTag').hidden=!(solvedFor&&solvedFor==ST.draw);$('undoBtn').disabled=!hist.length;
+ $('autoBtn').hidden=!(!won&&!S.stock.length&&!S.waste.length&&S.tab.some(p=>p.length)&&S.tab.every(p=>p.every(c=>c.up)));
+}
+function fmt(ms){const s=Math.floor(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
+function tick(){if(!t0&&!won){t0=Date.now()-elapsed;timer=setInterval(()=>{elapsed=Date.now()-t0;$('time').textContent=fmt(elapsed)},1000)}}
+function snap(){hist.push(JSON.stringify(S));if(hist.length>400)hist.shift()}
+function doMove(from,idx,to){
+ snap();$('ask').hidden=true;const src=pile(from),mv=src.splice(idx);pile(to).push(...mv);
+ if(from[0]=='t'&&src.length&&!src.at(-1).up)src.at(-1).up=true;
+ moves++;tick();render();check();
+}
+function drawCard(){
+ if(won||(!S.stock.length&&!S.waste.length))return;
+ snap();
+ if(!S.stock.length){S.stock=S.waste.reverse();S.stock.forEach(c=>c.up=false);S.waste=[]}
+ else for(let k=0,n=Math.min(ST.draw,S.stock.length);k<n;k++){const c=S.stock.pop();c.up=true;S.waste.push(c)}
+ moves++;tick();render();
+}
+function autoTarget(ref,idx){
+ const p=pile(ref),c=p[idx];
+ if(idx==p.length-1&&ref[0]!='f')for(let i=0;i<4;i++)if(canFound(c,S.found[i]))return 'f'+i;
+ let empty=null;
+ for(let j=0;j<7;j++){const r='t'+j;if(r==ref||!canTab(c,S.tab[j]))continue;if(S.tab[j].length)return r;if(!(ref[0]=='t'&&idx==0)&&!empty)empty=r}
+ return empty;
+}
+function flash(el,cls,ms){el.classList.remove(cls);void el.offsetWidth;el.classList.add(cls);setTimeout(()=>el.classList.remove(cls),ms)}
+function dropTarget(d){
+ const L=pos[d.ids[0]],lx=L.x+d.dx,ly=L.y+d.dy,c=pile(d.ref)[d.idx];let best=null,ba=0;
+ const ov=(x,y)=>Math.max(0,Math.min(lx+cw,x+cw)-Math.max(lx,x))*Math.max(0,Math.min(ly+ch,y+ch)-Math.max(ly,y));
+ if(d.ids.length==1)for(let i=0;i<4;i++){const r='f'+i;if(r!=d.ref&&canFound(c,S.found[i])){const a=ov(X(3+i),g);if(a>ba){ba=a;best=r}}}
+ for(let j=0;j<7;j++){const r='t'+j,p=S.tab[j];if(r==d.ref||!canTab(c,p))continue;const q=p.length?pos[p.at(-1).id]:{x:X(j),y:tabY};const a=ov(q.x,q.y);if(a>ba){ba=a;best=r}}
+ return best;
+}
+board.addEventListener('pointerdown',e=>{
+ if(!S||dealing||won||autoRun||e.button>0)return;
+ const el=e.target.closest('.card');
+ if(!el){if(e.target.closest('.slot[data-ref=stock]'))drawCard();return}
+ const L=locate(+el.dataset.id);if(!L)return;
+ if(L.ref=='stock'){drawCard();return}
+ const p=pile(L.ref);if(!p[L.idx].up||(L.ref[0]!='t'&&L.idx!=p.length-1))return;
+ e.preventDefault();
+ D={ref:L.ref,idx:L.idx,ids:p.slice(L.idx).map(c=>c.id),sx:e.clientX,sy:e.clientY,dx:0,dy:0,moved:false,pid:e.pointerId};
+});
+addEventListener('pointermove',e=>{
+ if(!D||e.pointerId!==D.pid)return;
+ const dx=e.clientX-D.sx,dy=e.clientY-D.sy;
+ if(!D.moved){if(Math.hypot(dx,dy)<6)return;D.moved=true;D.ids.forEach((id,k)=>{E[id].classList.add('drag');E[id].style.zIndex=1000+k})}
+ D.dx=dx;D.dy=dy;D.ids.forEach(id=>{const p=pos[id];E[id].style.transform=`translate(${p.x+dx}px,${p.y+dy}px)`});
+});
+addEventListener('pointerup',e=>{
+ if(!D||e.pointerId!==D.pid)return;const d=D;D=null;
+ d.ids.forEach(id=>E[id].classList.remove('drag'));
+ if(d.moved){const t=dropTarget(d);if(t)doMove(d.ref,d.idx,t);else render();return}
+ const t=autoTarget(d.ref,d.idx);if(t)doMove(d.ref,d.idx,t);else flash(E[d.ids[0]],'shake',420);
+});
+addEventListener('pointercancel',()=>{if(D){D.ids.forEach(id=>E[id].classList.remove('drag'));D=null;render()}});
+
+function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(t._h);t._h=setTimeout(()=>t.hidden=true,2400)}
+function oldHint(){
+ if(won||!S)return;
+ const show=(c,m)=>{flash(E[c.id],'hint',1400);toast(m)};
+ const tops=[['waste',S.waste.length-1],...S.tab.map((p,j)=>['t'+j,p.length-1])];
+ for(const[r,i]of tops){if(i<0)continue;const c=pile(r)[i];for(let f=0;f<4;f++)if(canFound(c,S.found[f]))return show(c,'這張可以收到右上角')}
+ for(let j=0;j<7;j++){const p=S.tab[j],i=p.findIndex(c=>c.up);if(i<0)continue;for(let k=0;k<7;k++)if(k!=j&&canTab(p[i],S.tab[k])&&!(i==0&&!S.tab[k].length))return show(p[i],'移動這一疊，可以翻開下面的牌')}
+ if(S.waste.length){const c=S.waste.at(-1);for(let k=0;k<7;k++)if(canTab(c,S.tab[k]))return show(c,'把這張放到下面的牌列')}
+ if(S.stock.length||S.waste.length){flash(SL.stock,'hint',1400);return toast('目前沒有明顯的步，點左上的牌堆抽牌看看')}
+ toast('好像走不下去了，試試復原或開新局');
+}
+/* hint: ask the solver for a move that still leads to a win; on a dead end, offer to rewind to the last winnable step */
+let hinting=0;
+const sameState=k=>JSON.stringify(S)===k;
+function showHint(m){
+ if(!m)return toast($('autoBtn').hidden?'照現在這樣走下去就能完成':'牌都翻開了，按「自動收牌」就完成');
+ const L=locate(m.card);if(!L)return;
+ if(L.ref=='stock'||(L.ref=='waste'&&L.idx!=S.waste.length-1)){
+  flash(S.stock.length?E[S.stock.at(-1).id]:SL.stock,'hint',1400);
+  return toast(S.stock.length?'先點左上的牌堆抽牌':'點左上的空牌堆，把牌翻回去再抽');
+ }
+ flash(E[m.card],'hint',1400);
+ toast(m.to=='f'?'把這張收到右上角':'把這張移到第 '+(+m.to.slice(1)+1)+' 列');
+}
+function ask(msg,yes,fn){
+ $('toast').hidden=true;$('askMsg').textContent=msg;$('askYes').textContent=yes;$('ask').hidden=false;
+ $('askYes').onclick=()=>{$('ask').hidden=true;fn()};$('askYes').focus();
+}
+async function hint(){
+ if(won||dealing||hinting||autoRun)return;
+ hinting=1;$('ask').hidden=true;$('hintBtn').disabled=true;
+ const k0=JSON.stringify(S);
+ try{
+  const r=await trySolve(toState(S),ST.draw,900);
+  if(!sameState(k0))return;
+  if(r.res==1)return showHint(r.first);
+  if(r.res==-1)return oldHint();
+  toast('這局從這裡已經走不完了，正在找還有解的那一步…');
+  const t=Date.now();let at=-1,fr=null;
+  for(let i=hist.length-1;i>=0&&Date.now()-t<12000;i--){
+   const q=await trySolve(toState(JSON.parse(hist[i])),ST.draw,500);
+   if(!sameState(k0))return;
+   if(q.res==1){at=i;fr=q;break}
+  }
+  if(at<0)return ask('往回找也沒找到有解的局面，要開新局嗎？','開新局',()=>newGame(true));
+  const n=hist.length-at;
+  ask(`這局已經走不完了。退回 ${n} 步就能回到還有解的地方，要退回嗎？`,`退回 ${n} 步`,()=>{
+   if(!sameState(k0)||hist.length<=at)return toast('局面已經變了，請再按一次提示');
+   S=JSON.parse(hist[at]);hist.length=at;render();setTimeout(()=>showHint(fr.first),260);
+  });
+ }finally{hinting=0;$('hintBtn').disabled=false}
+}
+function autoPlay(){
+ autoRun=true;
+ (function step(){
+  for(let j=0;j<7;j++){const p=S.tab[j];if(!p.length)continue;for(let i=0;i<4;i++)if(canFound(p.at(-1),S.found[i])){doMove('t'+j,p.length-1,'f'+i);if(!won)setTimeout(step,110);else autoRun=false;return}}
+  autoRun=false;
+ })();
+}
+function check(){
+ if(S.found.reduce((a,p)=>a+p.length,0)<52)return;
+ won=true;autoRun=false;clearInterval(timer);elapsed=t0?Date.now()-t0:0;$('time').textContent=fmt(elapsed);render();
+ const T=THEMES[ST.theme];
+ $('winPic').innerHTML=chr(T,13,'h');$('winStat').textContent=`用了 ${fmt(elapsed)}，共 ${moves} 步`;
+ setTimeout(()=>{$('win').hidden=false;$('againBtn').focus()},350);
+ const cf=$('confetti');cf.innerHTML=Array.from({length:40},(_,i)=>{const s=SU[i%4];return `<i style="left:${Math.random()*100}%;animation-duration:${2.6+Math.random()*2.4}s;animation-delay:${Math.random()*1.2}s"><svg viewBox="0 0 100 100">${shape(s,isRed(s)?T.red:T.blk)}</svg></i>`}).join('');
+ setTimeout(()=>cf.innerHTML='',6500);
+}
+/* solvable deals: a DFS solver checks each deal before it is used */
+function SOLVER(){
+ const R=c=>c%13+1,SI=c=>c/13|0,red=c=>c<26,ch=a=>String.fromCharCode.apply(null,a.map(x=>x+48));
+ function reach(L,p,k){
+  if(!L)return[];
+  if(k==1)return Array.from({length:L},(_,i)=>L-1-i);
+  const s=new Set();if(p>0)s.add(p-1);
+  for(let i=p-1+k;;i+=k){if(i>=L-1){s.add(L-1);break}s.add(i)}
+  for(let i=k-1;;i+=k){if(i>=L-1){s.add(L-1);break}s.add(i)}
+  return[...s];
+ }
+ const safe=(c,f)=>{const r=R(c);if(f[SI(c)]!=r-1)return false;if(r<=2)return true;return red(c)?f[2]>=r-1&&f[3]>=r-1:f[0]>=r-1&&f[1]>=r-1};
+ const canT=(c,col)=>!col.c.length?R(c)==13:(red(col.c.at(-1))!=red(c)&&R(col.c.at(-1))==R(c)+1);
+ /* st: {cols:[{d:hidden count,c:[ids]}], tal:[waste bottom→top, then stock in draw order], p:waste size, f:[cards per suit h,d,c,s]}
+    returns {res:1 solvable | 0 unsolvable | -1 out of time, first:{card,to:'f'|'tN'} or null} */
+ function solve(st0,draw,ms){
+  const t0=Date.now(),seen=new Set();let nodes=0,out=false,first=null;
+  const clone=st=>({cols:st.cols.map(o=>({d:o.d,c:o.c.slice()})),tal:st.tal.slice(),p:st.p,f:st.f.slice()});
+  const fix=o=>{if(o.d>0&&o.d>=o.c.length)o.d=o.c.length-1};
+  function auto(st,rec){
+   let again=true;
+   while(again){again=false;
+    for(const o of st.cols)if(o.c.length&&safe(o.c.at(-1),st.f)){const c=o.c.pop();if(rec)rec.push({card:c,to:'f'});st.f[SI(c)]++;fix(o);again=true}
+    for(const q of reach(st.tal.length,st.p,draw)){const c=st.tal[q];if(safe(c,st.f)){if(rec)rec.push({card:c,to:'f'});st.f[SI(c)]++;st.tal.splice(q,1);st.p=q;again=true;break}}
+   }
+  }
+  function key(st){return st.f.join('.')+'#'+st.cols.map(o=>o.d+ch(o.c)).sort().join('|')+'#'+ch(st.tal)+'#'+(draw==1?0:st.p)}
+  function gen(st){
+   const M=[],C=st.cols,f=st.f;
+   C.forEach((o,j)=>{if(o.c.length){const c=o.c.at(-1);if(f[SI(c)]==R(c)-1)M.push([100,'tf',j])}});
+   const rq=reach(st.tal.length,st.p,draw);
+   for(const q of rq){const c=st.tal[q];if(f[SI(c)]==R(c)-1)M.push([90,'wf',q])}
+   C.forEach((o,j)=>{
+    for(let i=o.d;i<o.c.length;i++){
+     const c=o.c[i];let sc;
+     if(i==o.d&&o.d>0)sc=80+o.d;
+     else if(i==0)sc=50;
+     else{const u=o.c[i-1];if(f[SI(u)]==R(u)-1)sc=70;else continue}
+     let emptyDone=false;
+     C.forEach((t,k)=>{if(k==j||!canT(c,t))return;if(!t.c.length){if(i==0||emptyDone)return;emptyDone=true}M.push([sc,'tt',j,i,k])});
+    }
+   });
+   for(const q of rq){const c=st.tal[q];let emptyDone=false;C.forEach((t,k)=>{if(!canT(c,t))return;if(!t.c.length){if(emptyDone)return;emptyDone=true}M.push([t.c.length?60:55,'wt',q,k])})}
+   return M.sort((a,b)=>b[0]-a[0]);
+  }
+  function desc(st,m){
+   if(m[1]=='tf')return{card:st.cols[m[2]].c.at(-1),to:'f'};
+   if(m[1]=='wf')return{card:st.tal[m[2]],to:'f'};
+   if(m[1]=='tt')return{card:st.cols[m[2]].c[m[3]],to:'t'+m[4]};
+   return{card:st.tal[m[2]],to:'t'+m[3]};
+  }
+  function apply(st,m){
+   const n=clone(st);
+   if(m[1]=='tf'){const o=n.cols[m[2]],c=o.c.pop();n.f[SI(c)]++;fix(o)}
+   else if(m[1]=='wf'){const c=n.tal.splice(m[2],1)[0];n.f[SI(c)]++;n.p=m[2]}
+   else if(m[1]=='tt'){const o=n.cols[m[2]],run=o.c.splice(m[3]);n.cols[m[4]].c.push(...run);fix(o)}
+   else{const c=n.tal.splice(m[2],1)[0];n.cols[m[3]].c.push(c);n.p=m[2]}
+   return n;
+  }
+  function dfs(st,d){
+   if(out)return false;
+   if((++nodes&1023)==0&&Date.now()-t0>ms){out=true;return false}
+   const rec=d==0?[]:null;auto(st,rec);if(rec&&rec.length)first=rec[0];
+   if(st.f[0]+st.f[1]+st.f[2]+st.f[3]==52)return true;
+   if(!st.tal.length&&st.cols.every(o=>o.d==0))return true;
+   const k=key(st);if(seen.has(k))return false;seen.add(k);
+   for(const m of gen(st)){
+    const ds=d==0&&!first?desc(st,m):null;
+    if(dfs(apply(st,m),d+1)){if(ds)first=ds;return true}
+    if(out)return false;
+   }
+   return false;
+  }
+  const ok=dfs(clone(st0),0);
+  return{res:ok?1:out?-1:0,first:ok?first:null};
+ }
+ if(typeof importScripts=='function')onmessage=e=>{const d=e.data;postMessage(Object.assign({id:d.id},solve(d.st,d.draw,d.ms)))};
+ return solve;
+}
+const solveLocal=SOLVER(),pend={};let worker=null,wid=0;
+try{worker=new Worker(URL.createObjectURL(new Blob(['('+SOLVER.toString()+')()'],{type:'text/javascript'})));
+ worker.onmessage=e=>{const f=pend[e.data.id];delete pend[e.data.id];if(f)f(e.data.res)};worker.onerror=()=>{worker=null}}catch(e){worker=null}
+function trySolve(st,draw,ms){return new Promise(res=>{
+ if(worker){const id=++wid;pend[id]=res;worker.postMessage({id,st,draw,ms});setTimeout(()=>{if(pend[id]){delete pend[id];res({res:-1,first:null})}},ms+1500)}
+ else setTimeout(()=>res(solveLocal(st,draw,Math.min(ms,400))),0);
+})}
+function toState(s){
+ const f=[0,0,0,0];s.found.forEach(p=>p.forEach(c=>f[SU.indexOf(c.s)]++));
+ return{cols:s.tab.map(p=>({d:p.filter(c=>!c.up).length,c:p.map(c=>c.id)})),tal:[...s.waste.map(c=>c.id),...s.stock.map(c=>c.id).reverse()],p:s.waste.length,f};
+}
+function dealFrom(){
+ const deck=[];for(let id=0;id<52;id++)deck.push({id,s:SU[id/13|0],r:id%13+1,up:false});
+ for(let i=51;i>0;i--){const j=Math.random()*(i+1)|0;[deck[i],deck[j]]=[deck[j],deck[i]]}
+ const s={stock:[],waste:[],found:[[],[],[],[]],tab:[[],[],[],[],[],[],[]]};
+ for(let i=0;i<7;i++)for(let j=i;j<7;j++){const c=deck.pop();c.up=j==i;s.tab[j].push(c)}
+ s.stock=deck;return s;
+}
+async function newGame(){
+ if(dealing)return;$('ask').hidden=true;
+ let s=dealFrom(),ok=false;const draw=ST.draw;
+ if(ST.solv){
+  dealing=1;$('newBtn').disabled=$('againBtn').disabled=true;toast('洗牌中，確認這局有解…');
+  const t=Date.now();
+  for(let a=0;a<25&&Date.now()-t<7000;a++){
+   if(a)s=dealFrom();
+   if((await trySolve(toState(s),draw,600)).res==1){ok=true;break}
+  }
+  dealing=0;$('newBtn').disabled=$('againBtn').disabled=false;
+  toast(ok?'這局保證有解，加油！':'這次沒找到有解局，先發一般隨機局');
+ }
+ solvedFor=ok?draw:0;startDeal(s);
+}
+function startDeal(s){
+ S=s;hist=[];moves=0;elapsed=0;t0=0;clearInterval(timer);won=false;autoRun=false;
+ $('time').textContent='0:00';$('win').hidden=true;$('confetti').innerHTML='';
+ measure();E.forEach(el=>{el.classList.add('nt');el.style.transform=`translate(${X(0)}px,${g}px)`});void board.offsetWidth;
+ let k=0;S.tab.forEach(p=>p.forEach(c=>{E[c.id].style.transitionDelay=(k++*16)+'ms'}));
+ E.forEach(el=>el.classList.remove('nt'));render();
+ setTimeout(()=>E.forEach(el=>el.style.transitionDelay=''),900);
+}
+function undo(){if(!hist.length||autoRun)return;$('ask').hidden=true;S=JSON.parse(hist.pop());won=false;$('win').hidden=true;render()}
+
+/* theme & background */
+function applyTheme(){
+ const T=THEMES[ST.theme];
+ for(const[k,v]of Object.entries({'--face':T.face,'--backBg':T.backBg,'--backEdge':T.backEdge,'--backPat':T.backPat,'--accent':T.red}))root.style.setProperty(k,v);
+ document.querySelectorAll('[data-theme-opt]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.themeOpt==ST.theme));
+ render();
+}
+function applyBg(){
+ const B=BGS[ST.bg];document.body.style.background=B.css;root.dataset.tbl=B.dark?'dark':'light';
+ document.querySelectorAll('[data-bg-opt]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.bgOpt==ST.bg));
+}
+function applySolv(){document.querySelectorAll('[data-solv]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.solv==ST.solv))}
+function applyDraw(){document.querySelectorAll('[data-draw]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.draw==ST.draw));render()}
+$('themeList').innerHTML=Object.entries(THEMES).map(([k,T])=>`<button class="opt" data-theme-opt="${k}"><div class="pv" style="${themeVars(T)}"><div class="card face">${cardInner({s:'h',r:13,up:1},T)}</div><div class="card face">${cardInner({s:'s',r:1,up:1},T)}</div><div class="card back">${cardInner({up:0},T)}</div></div>${T.name}</button>`).join('');
+$('bgList').innerHTML=Object.entries(BGS).map(([k,B])=>`<button class="opt" data-bg-opt="${k}"><div class="sw" style="background:${B.css}"></div>${B.name}</button>`).join('');
+$('themeList').addEventListener('click',e=>{const b=e.target.closest('[data-theme-opt]');if(b){ST.theme=b.dataset.themeOpt;save();applyTheme()}});
+$('bgList').addEventListener('click',e=>{const b=e.target.closest('[data-bg-opt]');if(b){ST.bg=b.dataset.bgOpt;save();applyBg()}});
+document.querySelectorAll('[data-draw]').forEach(b=>b.addEventListener('click',()=>{if(ST.draw==+b.dataset.draw)return;ST.draw=+b.dataset.draw;save();applyDraw();if(solvedFor)toast('抽牌方式改了，這局不再保證有解，下一局會照新設定確認')}));
+document.querySelectorAll('[data-solv]').forEach(b=>b.addEventListener('click',()=>{ST.solv=+b.dataset.solv;save();applySolv();toast('下一局開始生效')}));
+const openSheet=()=>{$('sheet').hidden=false;$('closeBtn').focus()},closeSheet=()=>{$('sheet').hidden=true;$('setBtn').focus()};
+$('setBtn').onclick=openSheet;$('closeBtn').onclick=closeSheet;
+$('sheet').addEventListener('click',e=>{if(e.target.id=='sheet')closeSheet()});
+$('newBtn').onclick=()=>{
+ const b=$('newBtn');
+ if(moves>0&&!won&&!newArm){newArm=1;b.textContent='確定重開？';setTimeout(()=>{newArm=0;b.textContent='新遊戲'},3000);return}
+ newArm=0;b.textContent='新遊戲';newGame();
+};
+$('askNo').onclick=()=>{$('ask').hidden=true};
+$('undoBtn').onclick=undo;$('hintBtn').onclick=hint;$('autoBtn').onclick=autoPlay;$('againBtn').onclick=newGame;
+addEventListener('keydown',e=>{
+ if(e.key=='Escape'&&!$('sheet').hidden)return closeSheet();
+ if(!$('sheet').hidden)return;
+ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()=='z'){e.preventDefault();undo()}
+ else if(e.key.toLowerCase()=='h'&&!e.ctrlKey&&!e.metaKey)hint();
+});
+const ro=new ResizeObserver(()=>{if(!D)render()});ro.observe(board);
+addEventListener('resize',()=>{if(!D)render()});
+applyBg();applyTheme();applyDraw();applySolv();newGame();
+}
+</script>
+</body>
+</html>
