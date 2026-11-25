@@ -103,7 +103,7 @@ button:focus-visible{outline:3px solid #ffd34d;outline-offset:2px}
   </div>
 </header>
 <main id="board" class="board" aria-label="接龍牌桌"></main>
-<p class="tip">點一下牌會自動移到合適位置，也可以拖曳。卡住時按「提示」，走進死局會幫你找回還有解的那一步。</p>
+<p class="tip" id="tip">點一下牌會自動移到合適位置，也可以拖曳。卡住時按「提示」，走進死局會幫你找回還有解的那一步。</p>
 
 <div id="sheet" class="sheet" hidden>
   <div class="box" role="dialog" aria-modal="true" aria-labelledby="stT">
@@ -199,7 +199,7 @@ function mkSlot(ref,html){const d=document.createElement('div');d.className='slo
 mkSlot('stock',RECY);mkSlot('waste','');for(let i=0;i<4;i++)mkSlot('f'+i,'A');for(let j=0;j<7;j++)mkSlot('t'+j,'K');
 
 /* state */
-let S={stock:[],waste:[],found:[[],[],[],[]],tab:[[],[],[],[],[],[],[]]},solvedFor=0,dealing=0,hist=[],moves=0,t0=0,elapsed=0,timer=0,won=false,autoRun=false,D=null,newArm=0;
+let autoTold=0,S={stock:[],waste:[],found:[[],[],[],[]],tab:[[],[],[],[],[],[],[]]},solvedFor=0,dealing=0,hist=[],moves=0,t0=0,elapsed=0,timer=0,won=false,autoRun=false,D=null,newArm=0;
 let cw=80,ch=112,g=8,ox=0,tabY=0;const pos={};
 const pile=r=>r=='stock'?S.stock:r=='waste'?S.waste:r[0]=='f'?S.found[+r[1]]:S.tab[+r[1]];
 const REFS=['stock','waste','f0','f1','f2','f3','t0','t1','t2','t3','t4','t5','t6'];
@@ -241,17 +241,22 @@ function render(){
  });
  board.style.height=bottom+g+'px';
  $('moves').textContent=moves;$('solvTag').hidden=!(solvedFor&&solvedFor==ST.draw);$('undoBtn').disabled=!hist.length;
- $('autoBtn').hidden=!(!won&&!S.stock.length&&!S.waste.length&&S.tab.some(p=>p.length)&&S.tab.every(p=>p.every(c=>c.up)));
+ const left=S.stock.length+S.waste.length+S.tab.reduce((a,p)=>a+p.length,0);
+ const canAuto=!won&&left>0&&S.tab.every(p=>p.every(c=>c.up));
+ $('autoBtn').hidden=!canAuto;
+ if(canAuto&&!autoTold&&!autoRun){autoTold=1;setTimeout(()=>toast('下面的牌全翻開了，可以按「自動收牌」'),300)}
 }
 function fmt(ms){const s=Math.floor(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
 function tick(){if(!t0&&!won){t0=Date.now()-elapsed;timer=setInterval(()=>{elapsed=Date.now()-t0;$('time').textContent=fmt(elapsed)},1000)}}
 function snap(){hist.push(JSON.stringify(S));if(hist.length>400)hist.shift()}
 function doMove(from,idx,to){
- snap();$('ask').hidden=true;const src=pile(from),mv=src.splice(idx);pile(to).push(...mv);
+ hideTip();snap();$('ask').hidden=true;const src=pile(from),mv=src.splice(idx);pile(to).push(...mv);
  if(from[0]=='t'&&src.length&&!src.at(-1).up)src.at(-1).up=true;
  moves++;tick();render();check();
 }
+function hideTip(){if(!$('tip').hidden){$('tip').hidden=true;ST.tip=1;save()}}
 function drawCard(){
+ hideTip();
  if(won||(!S.stock.length&&!S.waste.length))return;
  snap();
  if(!S.stock.length){S.stock=S.waste.reverse();S.stock.forEach(c=>c.up=false);S.waste=[]}
@@ -350,11 +355,38 @@ async function hint(){
  }finally{hinting=0;$('hintBtn').disabled=false}
 }
 function autoPlay(){
- autoRun=true;
- (function step(){
-  for(let j=0;j<7;j++){const p=S.tab[j];if(!p.length)continue;for(let i=0;i<4;i++)if(canFound(p.at(-1),S.found[i])){doMove('t'+j,p.length-1,'f'+i);if(!won)setTimeout(step,110);else autoRun=false;return}}
-  autoRun=false;
- })();
+ if(autoRun||won)return;
+ autoRun=true;$('ask').hidden=true;let idle=0,guard=0,solverFailed=0;
+ const go=ms=>{if(won)autoRun=false;else setTimeout(step,ms)};
+ const stop=m=>{autoRun=false;if(!won)toast(m)};
+ /* follow one solver move: draw until the card surfaces, otherwise play it */
+ function exec(m){
+  const L=locate(m.card);if(!L)return false;
+  if(L.ref=='stock'||(L.ref=='waste'&&L.idx!=S.waste.length-1)){drawCard();return true}
+  if(m.to=='f'){for(let i=0;i<4;i++)if(canFound(pile(L.ref)[L.idx],S.found[i])){doMove(L.ref,L.idx,'f'+i);return true}return false}
+  if(!canTab(pile(L.ref)[L.idx],pile(m.to)))return false;
+  doMove(L.ref,L.idx,m.to);return true;
+ }
+ async function step(){
+  if(won)return void(autoRun=false);
+  const talon=S.stock.length+S.waste.length;
+  /* draw three with cards left in the stock: the stock order can block, and emptying the
+     tableau too early removes the spots needed to reorder it, so follow the solver */
+  if(ST.draw==3&&talon&&!solverFailed){
+   if(++guard>800)return stop('自動收牌卡住了，剩下的請手動移動看看');
+   const r=await trySolve(toState(S),3,900);
+   if(won)return void(autoRun=false);
+   if(r.res==1&&r.first&&exec(r.first))return go(80);
+   if(r.res==0)return stop('抽 3 張的牌序卡住了，這局無法自動收完，可以按「提示」退回');
+   solverFailed=1;
+  }
+  for(let j=0;j<7;j++){const p=S.tab[j];if(!p.length)continue;for(let i=0;i<4;i++)if(canFound(p.at(-1),S.found[i])){idle=0;doMove('t'+j,p.length-1,'f'+i);return go(110)}}
+  if(S.waste.length){const c=S.waste.at(-1);for(let i=0;i<4;i++)if(canFound(c,S.found[i])){idle=0;doMove('waste',S.waste.length-1,'f'+i);return go(110)}}
+  /* draw one: every stock card is reachable, so drawing always finds the next card */
+  if(talon&&idle<=Math.ceil(talon/ST.draw)+2){idle++;drawCard();return go(70)}
+  stop('自動收牌卡住了，剩下的請手動移動看看');
+ }
+ step();
 }
 function check(){
  if(S.found.reduce((a,p)=>a+p.length,0)<52)return;
@@ -478,7 +510,7 @@ async function newGame(){
  solvedFor=ok?draw:0;startDeal(s);
 }
 function startDeal(s){
- S=s;hist=[];moves=0;elapsed=0;t0=0;clearInterval(timer);won=false;autoRun=false;
+ S=s;hist=[];autoTold=0;moves=0;elapsed=0;t0=0;clearInterval(timer);won=false;autoRun=false;
  $('time').textContent='0:00';$('win').hidden=true;$('confetti').innerHTML='';
  measure();E.forEach(el=>{el.classList.add('nt');el.style.transform=`translate(${X(0)}px,${g}px)`});void board.offsetWidth;
  let k=0;S.tab.forEach(p=>p.forEach(c=>{E[c.id].style.transitionDelay=(k++*16)+'ms'}));
@@ -524,6 +556,7 @@ addEventListener('keydown',e=>{
 });
 const ro=new ResizeObserver(()=>{if(!D)render()});ro.observe(board);
 addEventListener('resize',()=>{if(!D)render()});
+if(ST.tip)$('tip').hidden=true;
 applyBg();applyTheme();applyDraw();applySolv();newGame();
 }
 </script>
